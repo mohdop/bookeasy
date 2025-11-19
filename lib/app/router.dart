@@ -8,10 +8,8 @@ import '../features/auth/screens/register_screen.dart';
 import '../features/business/screens/dashboard_screen.dart';
 import '../features/business/screens/business_setup_screen.dart';
 import '../features/services/screens/services_list_screen.dart';
-import '../features/services/screens/create_service_screen.dart';
 import '../features/appointments/screens/appointments_list_screen.dart';
 import '../features/client/screens/business_profile_screen.dart';
-import '../features/client/screens/booking_screen.dart';
 
 final supabase = Supabase.instance.client;
 
