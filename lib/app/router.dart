@@ -17,23 +17,22 @@ final router = GoRouter(
   initialLocation: '/login',
   redirect: (context, state) {
     final isLoggedIn = supabase.auth.currentUser != null;
-    final isLoggingIn = state.matchedLocation == '/login' || 
+    final isAuthRoute = state.matchedLocation == '/login' || 
                         state.matchedLocation == '/register';
     
-    // Redirect to dashboard if logged in and trying to access login
-    if (isLoggedIn && isLoggingIn) {
+    // If logged in and trying to access auth pages, redirect to dashboard
+    if (isLoggedIn && isAuthRoute) {
       return '/dashboard';
     }
     
-    // Redirect to login if not logged in and trying to access protected routes
-    if (!isLoggedIn && !isLoggingIn) {
+    // If not logged in and trying to access protected pages, redirect to login
+    if (!isLoggedIn && !isAuthRoute) {
       return '/login';
     }
     
-    return null;
+    return null; // Allow navigation
   },
   routes: [
-    // Auth Routes
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
@@ -42,20 +41,14 @@ final router = GoRouter(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
     ),
-    
-    // Business Setup (First time)
     GoRoute(
       path: '/business-setup',
       builder: (context, state) => const BusinessSetupScreen(),
     ),
-    
-    // Dashboard Routes
     GoRoute(
       path: '/dashboard',
       builder: (context, state) => const DashboardScreen(),
     ),
-    
-    // Services Routes
     GoRoute(
       path: '/services',
       builder: (context, state) => const ServicesListScreen(),
@@ -71,14 +64,10 @@ final router = GoRouter(
         return CreateServiceScreen(serviceId: id);
       },
     ),
-    
-    // Appointments Routes
     GoRoute(
       path: '/appointments',
       builder: (context, state) => const AppointmentsListScreen(),
     ),
-    
-    // Client Routes
     GoRoute(
       path: '/business/:id',
       builder: (context, state) {
@@ -90,13 +79,29 @@ final router = GoRouter(
       path: '/booking/:businessId',
       builder: (context, state) {
         final businessId = state.pathParameters['businessId']!;
-        return BookingScreen(businessId: businessId);
+        final serviceId = state.uri.queryParameters['serviceId'];
+        return BookingScreen(
+          businessId: businessId,
+          serviceId: serviceId,
+        );
       },
     ),
   ],
   errorBuilder: (context, state) => Scaffold(
     body: Center(
-      child: Text('Page not found: ${state.uri}'),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text('Page introuvable: ${state.uri}'),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => context.go('/dashboard'),
+            child: const Text('Retour à l\'accueil'),
+          ),
+        ],
+      ),
     ),
   ),
 );
