@@ -34,9 +34,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       final businessData = await SupabaseProvider.table('businesses')
           .select('*')
           .eq('id', widget.businessId)
-          .single();
+          .maybeSingle();
       
-      _business = Business.fromJson(businessData);
+      _business = Business.fromJson(businessData!);
 
       // Load services
       final servicesData = await SupabaseProvider.table('services')

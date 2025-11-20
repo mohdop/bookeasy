@@ -33,9 +33,9 @@ class _ServicesListScreenState extends State<ServicesListScreen> {
       final businessData = await SupabaseProvider.table('businesses')
           .select('id')
           .eq('owner_id', SupabaseProvider.currentUserId!)
-          .single();
+          .maybeSingle();
       
-      _businessId = businessData['id'];
+      _businessId = businessData?['id'];
 
       // Load services
       final servicesData = await SupabaseProvider.table('services')

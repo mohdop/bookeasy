@@ -10,8 +10,27 @@ import '../features/business/screens/business_setup_screen.dart';
 import '../features/services/screens/services_list_screen.dart';
 import '../features/appointments/screens/appointments_list_screen.dart';
 import '../features/client/screens/business_profile_screen.dart';
+import '../data/providers/supabase_provider.dart';
+import '../app/theme.dart';
 
 final supabase = Supabase.instance.client;
+
+// Helper pour vérifier si l'utilisateur est business owner
+Future<bool> _isBusinessOwner() async {
+  try {
+    final userId = supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+
+    final profileData = await SupabaseProvider.table('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+    return profileData['role'] == 'business_owner';
+  } catch (e) {
+    return false;
+  }
+}
 
 final router = GoRouter(
   initialLocation: '/login',
@@ -20,17 +39,18 @@ final router = GoRouter(
     final isAuthRoute = state.matchedLocation == '/login' || 
                         state.matchedLocation == '/register';
     
-    // If logged in and trying to access auth pages, redirect to dashboard
-    if (isLoggedIn && isAuthRoute) {
-      return '/dashboard';
-    }
-    
-    // If not logged in and trying to access protected pages, redirect to login
+    // Si pas connecté et pas sur auth, aller au login
     if (!isLoggedIn && !isAuthRoute) {
       return '/login';
     }
     
-    return null; // Allow navigation
+    // Si connecté et sur auth, aller au dashboard
+    // (le dashboard gérera lui-même la vérification du rôle)
+    if (isLoggedIn && isAuthRoute) {
+      return '/dashboard';
+    }
+    
+    return null; // Laisser passer
   },
   routes: [
     GoRoute(
@@ -92,13 +112,13 @@ final router = GoRouter(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+          const Icon(Icons.error_outline, size: 64, color: AppTheme.error),
           const SizedBox(height: 16),
           Text('Page introuvable: ${state.uri}'),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () => context.go('/dashboard'),
-            child: const Text('Retour à l\'accueil'),
+            onPressed: () => context.go('/login'),
+            child: const Text('Retour'),
           ),
         ],
       ),

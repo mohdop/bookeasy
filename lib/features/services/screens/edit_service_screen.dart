@@ -45,9 +45,9 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
       final data = await SupabaseProvider.table('services')
           .select('*')
           .eq('id', widget.serviceId!)
-          .single();
+          .maybeSingle();
 
-      _existingService = Service.fromJson(data);
+      _existingService = Service.fromJson(data!);
       
       _nameController.text = _existingService!.name;
       _descriptionController.text = _existingService!.description ?? '';
@@ -75,52 +75,63 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) return;
+ Future<void> _handleSubmit() async {
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
-    try {
-      // Get business ID
-      final businessData = await SupabaseProvider.table('businesses')
-          .select('id')
-          .eq('owner_id', SupabaseProvider.currentUserId!)
-          .single();
+  try {
+    // Get business ID
+    final businessData = await SupabaseProvider.table('businesses')
+        .select('id')
+        .eq('owner_id', SupabaseProvider.currentUserId!)
+        .maybeSingle();
 
-      final serviceData = {
-        'business_id': businessData['id'],
-        'name': _nameController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'duration_minutes': int.parse(_durationController.text),
-        'price': double.parse(_priceController.text),
-        'is_active': _isActive,
-        'currency': 'EUR',
-      };
-
-      if (_isEditMode) {
-        await SupabaseProvider.table('services')
-            .update(serviceData)
-            .eq('id', widget.serviceId!);
-      } else {
-        await SupabaseProvider.table('services').insert(serviceData);
-      }
-
+    if (businessData == null) {
       if (mounted) {
         context.showSnackBar(
-          _isEditMode ? 'Service modifié' : 'Service créé',
+          'Aucun business trouvé pour cet utilisateur',
+          isError: true,
         );
-        context.pop();
       }
-    } catch (e) {
-      if (mounted) {
-        context.showSnackBar('Erreur: ${e.toString()}', isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      return;
+    }
+
+    final serviceData = {
+      'business_id': businessData['id'],
+      'name': _nameController.text.trim(),
+      'description': _descriptionController.text.trim(),
+      'duration_minutes': int.parse(_durationController.text),
+      'price': double.parse(_priceController.text),
+      'is_active': _isActive,
+      'currency': 'EUR',
+    };
+
+    if (_isEditMode) {
+      await SupabaseProvider.table('services')
+          .update(serviceData)
+          .eq('id', widget.serviceId!);
+    } else {
+      await SupabaseProvider.table('services').insert(serviceData);
+    }
+
+    if (mounted) {
+      context.showSnackBar(
+        _isEditMode ? 'Service modifié' : 'Service créé',
+      );
+      context.pop();
+    }
+  } catch (e) {
+    if (mounted) {
+      context.showSnackBar('Erreur: ${e.toString()}', isError: true);
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
+
 
   @override
   Widget build(BuildContext context) {

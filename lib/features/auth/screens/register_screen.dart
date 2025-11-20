@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/extensions/context_extension.dart';
@@ -47,44 +48,104 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
+  try {
+    // 1. Créer le compte avec Supabase Auth
+    final authResponse = await SupabaseProvider.client.auth.signUp(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      data: {
+        'full_name': _fullNameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'role': _role,
+      },
+    );
+
+    if (authResponse.user == null) {
+      throw Exception('Erreur lors de la création du compte');
+    }
+
+    // 2. Créer ou mettre à jour le profil manuellement (au cas où le trigger échoue)
     try {
-      final response = await SupabaseProvider.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        data: {
-          'full_name': _fullNameController.text.trim(),
-          'phone': _phoneController.text.trim(),
-          'role': _role,
-        },
-      );
-
-      if (response.user != null && mounted) {
-        context.showSnackBar('Compte créé avec succès!');
-        
-        // If business owner, redirect to business setup
-        if (_role == 'business_owner') {
-          GoRouterHelper(context).go('/business-setup');
-        } else {
-          GoRouterHelper(context).go('/dashboard');
-        }
-      }
+      await SupabaseProvider.table('profiles').upsert({
+        'id': authResponse.user!.id,
+        'email': _emailController.text.trim(),
+        'full_name': _fullNameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'role': _role,
+      });
     } catch (e) {
-      if (mounted) {
-        context.showSnackBar(
-          'Erreur lors de l\'inscription: ${e.toString()}',
-          isError: true,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      print('Profil déjà créé par le trigger: $e');
+    }
+
+    if (mounted) {
+      context.showSnackBar('Compte créé avec succès!');
+      
+      // 3. Attendre 1 seconde puis rediriger
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // 4. Rediriger selon le rôle
+      if (_role == 'business_owner') {
+        GoRouterHelper(context).go('/business-setup');
+      } else {
+        // Pour les clients, rediriger vers login temporairement
+        // TODO: Créer une page d'accueil client
+        GoRouterHelper(context).go('/login');
       }
     }
+  } on AuthException catch (e) {
+    if (mounted) {
+      String errorMessage = 'Erreur lors de l\'inscription';
+      
+      if (e.message.contains('already registered')) {
+        errorMessage = 'Cet email est déjà utilisé';
+      } else if (e.message.contains('password')) {
+        errorMessage = 'Le mot de passe est trop faible';
+      } else {
+        errorMessage = e.message;
+      }
+      
+      context.showSnackBar(errorMessage, isError: true);
+    }
+  } catch (e) {
+    if (mounted) {
+      context.showSnackBar(
+        'Erreur: ${e.toString()}',
+        isError: true,
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
+}
+Future<void> _debugCheckProfile(String userId) async {
+  try {
+    print('=== DEBUG: Vérification du profil ===');
+    
+    // Vérifier dans auth.users
+    final authUser = SupabaseProvider.client.auth.currentUser;
+    print('Auth User ID: ${authUser?.id}');
+    print('Auth User Email: ${authUser?.email}');
+    print('Auth User Metadata: ${authUser?.userMetadata}');
+    
+    // Vérifier dans profiles
+    final profileData = await SupabaseProvider.table('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    
+    print('Profile Data: $profileData');
+    print('=== FIN DEBUG ===');
+  } catch (e) {
+    print('Erreur debug: $e');
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {

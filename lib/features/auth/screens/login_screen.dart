@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/extensions/context_extension.dart';
@@ -30,32 +31,97 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+  setState(() => _isLoading = true);
 
-    try {
-      final response = await SupabaseProvider.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+  try {
+    // 1. Se connecter avec Supabase
+    final response = await SupabaseProvider.client.auth.signInWithPassword(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+    );
 
-      if (response.user != null && mounted) {
+    if (response.user == null) {
+      throw Exception('Erreur de connexion');
+    }
+
+    // 2. Attendre un peu pour que la session soit établie
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // 3. Vérifier le rôle de l'utilisateur
+    if (mounted) {
+      try {
+        final profileData = await SupabaseProvider.table('profiles')
+            .select('role')
+            .eq('id', response.user!.id)
+            .single();
+
+        final userRole = profileData['role'] as String;
+
+        // 4. Rediriger selon le rôle
+        if (userRole == 'business_owner') {
+          // Vérifier si le business existe
+          final businessData = await SupabaseProvider.table('businesses')
+              .select('id')
+              .eq('owner_id', response.user!.id)
+              .maybeSingle();
+
+          if (businessData == null) {
+            // Pas de business, aller au setup
+            GoRouterHelper(context).go('/business-setup');
+          } else {
+            // Business existe, aller au dashboard
+            GoRouterHelper(context).go('/dashboard');
+          }
+        } else {
+          // Client: aller à une page d'accueil client
+          // TODO: Créer une vraie page d'accueil client
+          context.showSnackBar('Bienvenue ! Page client en développement');
+          
+          // Temporairement, déconnecter le client
+          await SupabaseProvider.client.auth.signOut();
+          
+          if (mounted) {
+            context.showSnackBar(
+              'Fonctionnalité client en cours de développement. Utilisez un compte professionnel.',
+              isError: true,
+            );
+          }
+        }
+      } catch (e) {
+        print('Erreur lors de la récupération du profil: $e');
+        // Si erreur, aller au dashboard par défaut
         GoRouterHelper(context).go('/dashboard');
       }
-    } catch (e) {
-      if (mounted) {
-        context.showSnackBar(
-          'Erreur de connexion: ${e.toString()}',
-          isError: true,
-        );
+    }
+  } on AuthException catch (e) {
+    if (mounted) {
+      String errorMessage = 'Email ou mot de passe incorrect';
+      
+      if (e.message.contains('Invalid login')) {
+        errorMessage = 'Email ou mot de passe incorrect';
+      } else if (e.message.contains('Email not confirmed')) {
+        errorMessage = 'Veuillez confirmer votre email';
+      } else {
+        errorMessage = e.message;
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      
+      context.showSnackBar(errorMessage, isError: true);
+    }
+  } catch (e) {
+    if (mounted) {
+      context.showSnackBar(
+        'Erreur de connexion: ${e.toString()}',
+        isError: true,
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

@@ -24,27 +24,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   List<Appointment> _todayAppointments = [];
   bool _isLoading = true;
   String? _error;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _checkUserRoleAndLoadData();
+  }
+
+  Future<void> _checkUserRoleAndLoadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Récupérer le rôle de l'utilisateur
+      final profileData = await SupabaseProvider.table('profiles')
+          .select('role')
+          .eq('id', SupabaseProvider.currentUserId!)
+          .single();
+      
+      _userRole = profileData['role'];
+
+      // Si c'est un client, ne pas charger les données business
+      if (_userRole != 'business_owner') {
+        setState(() {
+          _isLoading = false;
+          _error = 'Accès refusé: Vous n\'êtes pas un professionnel';
+        });
+        return;
+      }
+
+      await _loadData();
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
     try {
       // Load business
       final businessData = await SupabaseProvider.table('businesses')
           .select('*')
           .eq('owner_id', SupabaseProvider.currentUserId!)
-          .single();
+          .maybeSingle();
       
-      _business = Business.fromJson(businessData);
+      if (businessData == null) {
+        // Pas de business, rediriger vers setup
+        if (mounted) {
+          context.go('/business-setup');
+          return;
+        }
+      }
+      
+      _business = Business.fromJson(businessData!);
 
       // Load today's appointments
       final today = DateTime.now();
@@ -68,6 +102,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _onNavTap(int index) {
+    // Vérifier le rôle avant de naviguer
+    if (_userRole != 'business_owner') {
+      context.showSnackBar(
+        'Accès refusé: Fonctionnalité réservée aux professionnels',
+        isError: true,
+      );
+      return;
+    }
+
     setState(() => _selectedIndex = index);
     
     switch (index) {
@@ -96,14 +139,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.business),
-              title: const Text('Mon établissement'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to business settings
-              },
-            ),
+            if (_userRole == 'business_owner') ...[
+              ListTile(
+                leading: const Icon(Icons.business),
+                title: const Text('Mon établissement'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // TODO: Navigate to business settings
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.person),
               title: const Text('Mon profil'),
@@ -140,39 +185,58 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: LoadingIndicator(message: 'Chargement...'),
+      );
+    }
+
+    if (_error != null || _userRole != 'business_owner') {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: AppTheme.error),
+              const SizedBox(height: 16),
+              Text(
+                _error ?? 'Accès refusé',
+                textAlign: TextAlign.center,
+                style: ContextExtension(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => context.go('/login'),
+                child: const Text('Retour'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: _isLoading
-            ? const LoadingIndicator(message: 'Chargement...')
-            : _error != null
-                ? Center(child: Text('Erreur: $_error'))
-                : RefreshIndicator(
-                    onRefresh: _loadData,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header
-                          _buildHeader(),
-                          const SizedBox(height: 24),
-                          
-                          // Stats
-                          _buildStats(),
-                          const SizedBox(height: 32),
-                          
-                          // Quick Actions
-                          _buildQuickActions(),
-                          const SizedBox(height: 32),
-                          
-                          // Today's Appointments
-                          _buildTodayAppointments(),
-                        ],
-                      ),
-                    ),
-                  ),
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 24),
+                _buildStats(),
+                const SizedBox(height: 32),
+                _buildQuickActions(),
+                const SizedBox(height: 32),
+                _buildTodayAppointments(),
+              ],
+            ),
+          ),
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
@@ -204,6 +268,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  // Les autres méthodes restent identiques (_buildHeader, _buildStats, etc.)
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,13 +403,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 }
 
-// Quick Action Card Widget
+
 class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
   const _QuickActionCard({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
@@ -352,39 +418,29 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.lightGray),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryBlue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 28, color: AppTheme.primaryBlue),
+              const SizedBox(height: 12),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              child: Icon(
-                icon,
-                color: AppTheme.primaryBlue,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: ContextExtension(context).textTheme.labelMedium,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
+

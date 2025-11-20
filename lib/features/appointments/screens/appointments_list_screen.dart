@@ -44,9 +44,9 @@ class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
       final businessData = await SupabaseProvider.table('businesses')
           .select('id')
           .eq('owner_id', SupabaseProvider.currentUserId!)
-          .single();
+          .maybeSingle();
       
-      _businessId = businessData['id'];
+      _businessId = businessData?['id'];
 
       // Load all appointments for the month
       final startDate = DateTime(_focusedDay.year, _focusedDay.month, 1);
@@ -166,55 +166,74 @@ class _AppointmentsListScreenState extends State<AppointmentsListScreen> {
   }
 
   Widget _buildCalendar() {
-    return Container(
-      color: Colors.white,
-      child: TableCalendar<Appointment>(
-        firstDay: DateTime.utc(2020, 1, 1),
-        lastDay: DateTime.utc(2030, 12, 31),
-        focusedDay: _focusedDay,
-        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-        calendarFormat: _calendarFormat,
-        eventLoader: _getAppointmentsForDay,
-        startingDayOfWeek: StartingDayOfWeek.monday,
-        locale: 'fr_FR',
-        
-        calendarStyle: CalendarStyle(
-          selectedDecoration: const BoxDecoration(
-            color: AppTheme.primaryBlue,
-            shape: BoxShape.circle,
-          ),
-          todayDecoration: BoxDecoration(
-            color: AppTheme.primaryBlue.withOpacity(0.3),
-            shape: BoxShape.circle,
-          ),
-          markerDecoration: const BoxDecoration(
-            color: AppTheme.accentTeal,
-            shape: BoxShape.circle,
-          ),
-          markersMaxCount: 1,
+  return Container(
+    color: Colors.white,
+    child: TableCalendar<Appointment>(
+      firstDay: DateTime.utc(2020, 1, 1),
+      lastDay: DateTime.utc(2030, 12, 31),
+      focusedDay: _focusedDay,
+      selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+      calendarFormat: _calendarFormat,
+      eventLoader: _getAppointmentsForDay,
+      startingDayOfWeek: StartingDayOfWeek.monday,
+      
+      // IMPORTANT: Enlever le locale qui cause l'erreur
+      // locale: 'fr_FR',  ← SUPPRIMER CETTE LIGNE
+      
+      calendarStyle: CalendarStyle(
+        selectedDecoration: const BoxDecoration(
+          color: AppTheme.primaryBlue,
+          shape: BoxShape.circle,
         ),
-        
-        headerStyle: HeaderStyle(
-          formatButtonVisible: false,
-          titleCentered: true,
-          titleTextStyle: ContextExtension(context).textTheme.titleLarge!,
+        todayDecoration: BoxDecoration(
+          color: AppTheme.primaryBlue.withOpacity(0.3),
+          shape: BoxShape.circle,
         ),
-        
-        onDaySelected: (selectedDay, focusedDay) {
-          setState(() {
-            _selectedDay = selectedDay;
-            _focusedDay = focusedDay;
-            _filterAppointmentsForSelectedDay();
-          });
-        },
-        
-        onPageChanged: (focusedDay) {
-          _focusedDay = focusedDay;
-          _loadAppointments();
-        },
+        markerDecoration: const BoxDecoration(
+          color: AppTheme.accentTeal,
+          shape: BoxShape.circle,
+        ),
+        markersMaxCount: 1,
+        outsideDaysVisible: false, // AJOUTER CETTE LIGNE
       ),
-    );
-  }
+      
+      headerStyle: HeaderStyle(
+        formatButtonVisible: false,
+        titleCentered: true,
+        titleTextStyle: ContextExtension(context).textTheme.titleLarge!,
+        leftChevronIcon: const Icon(
+          Icons.chevron_left,
+          color: AppTheme.primaryBlue,
+        ),
+        rightChevronIcon: const Icon(
+          Icons.chevron_right,
+          color: AppTheme.primaryBlue,
+        ),
+      ),
+      
+      daysOfWeekStyle: DaysOfWeekStyle(
+        weekdayStyle: ContextExtension(context).textTheme.labelMedium!,
+        weekendStyle: ContextExtension(context).textTheme.labelMedium!.copyWith(
+          color: AppTheme.error,
+        ),
+      ),
+      
+      onDaySelected: (selectedDay, focusedDay) {
+        setState(() {
+          _selectedDay = selectedDay;
+          _focusedDay = focusedDay;
+          _filterAppointmentsForSelectedDay();
+        });
+      },
+      
+      onPageChanged: (focusedDay) {
+        _focusedDay = focusedDay;
+        _loadAppointments();
+      },
+    ),
+  );
+}
+
 
   Widget _buildAppointmentsList() {
     return Container(
@@ -588,4 +607,3 @@ class InfoItem extends StatelessWidget {
   }
 }
 
-// Import this at the top
