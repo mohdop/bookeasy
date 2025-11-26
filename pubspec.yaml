@@ -56,6 +56,10 @@ dependencies:
   flutter_stripe: ^12.1.1
   flutter_local_notifications: ^19.5.0
   permission_handler: ^12.0.1
+  fl_chart: ^1.1.1
+  flutter_launcher_icons: ^0.14.4
+  uni_links: ^0.5.1
+  #flutter_secure_storage: ^4.2.1
 
 dev_dependencies:
   riverpod_generator: 
@@ -72,7 +76,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   freezed: ^3.2.3
   json_serializable: ^6.11.1
-  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -115,3 +118,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+dependency_overrides:
+  flutter_secure_storage: ^9.2.2
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/BOOKEASY LOGO.png"  # Your icon file
+  # Optional: Different icons for different platforms
+  # image_path_android: "assets/images/icon_android.png"
+  # image_path_ios: "assets/images/icon_ios.png"
+  
+  # Adaptive icon for Android
+  adaptive_icon_background: "#2563EB"  # Your primary blue color
+  adaptive_icon_foreground: "assets/images/BookEasy_white.png"

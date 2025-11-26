@@ -17,6 +17,9 @@ class AppConstants {
     'coach': '🏋️',
     'nail_artist': '💅',
     'tutor': '📚',
+    'hair dresser': '✂️',
+    'plumber':'🧑‍🔧',
+    'maid':'🧹',
     'other': '💼',
   };
 }

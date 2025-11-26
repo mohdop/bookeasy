@@ -102,92 +102,80 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _onNavTap(int index) {
-    // Vérifier le rôle avant de naviguer
-    if (_userRole != 'business_owner') {
-      context.showSnackBar(
-        'Accès refusé: Fonctionnalité réservée aux professionnels',
-        isError: true,
-      );
-      return;
-    }
-
-    setState(() => _selectedIndex = index);
-    
-    switch (index) {
-      case 0:
-        // Already on dashboard
-        break;
-      case 1:
-        context.push('/services');
-        break;
-      case 2:
-        context.push('/appointments');
-        break;
-      case 3:
-        _showProfileMenu();
-        break;
-    }
+  setState(() => _selectedIndex = index);
+  
+  switch (index) {
+    case 0:
+      // Already on dashboard
+      break;
+    case 1:
+      context.push('/services');
+      break;
+    case 2:
+      context.push('/appointments');
+      break;
+    case 3:
+      context.push('/analytics');
+      break;
+    case 4:
+      _showProfileMenu();
+      break;
   }
+}
 
   void _showProfileMenu() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_userRole == 'business_owner') ...[
-              ListTile(
-                leading: const Icon(Icons.business),
-                title: const Text('Mon établissement'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Navigate to business settings
-                },
-              ),
-            ],
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('Mon profil'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to profile
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Paramètres'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to settings
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.logout, color: AppTheme.error),
-              title: const Text('Déconnexion', style: TextStyle(color: AppTheme.error)),
-              onTap: () async {
-                await SupabaseProvider.client.auth.signOut();
-                if (context.mounted) {
-                  context.go('/login');
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Business Settings
+          ListTile(
+            leading: const Icon(Icons.business),
+            title: const Text('Mon établissement'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/business-settings');
+            },
+          ),
+          // Personal Profile
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('Mon profil'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/owner-profile');
+            },
+          ),
+          const Divider(),
+          // Logout
+          ListTile(
+          leading: const Icon(Icons.logout, color: AppTheme.error),
+          title: const Text('Déconnexion'),
+          onTap: () async {
+            await SupabaseProvider.client.auth.signOut();  // ✅ Clears session
+            if (context.mounted) {
+              context.go('/login');
+            }
+          },
         ),
+          const SizedBox(height: 8),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
         body: LoadingIndicator(message: 'Chargement...'),
+        
       );
     }
 
@@ -239,32 +227,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onNavTap,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Accueil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt_outlined),
-            activeIcon: Icon(Icons.list_alt),
-            label: 'Services',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today_outlined),
-            activeIcon: Icon(Icons.calendar_today),
-            label: 'Agenda',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
-      ),
+  currentIndex: _selectedIndex,
+  onTap: _onNavTap,
+  type: BottomNavigationBarType.fixed,
+  items: const [
+    BottomNavigationBarItem(
+      icon: Icon(Icons.home_outlined),
+      activeIcon: Icon(Icons.home),
+      label: 'Accueil',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.list_alt_outlined),
+      activeIcon: Icon(Icons.list_alt),
+      label: 'Services',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.calendar_today_outlined),
+      activeIcon: Icon(Icons.calendar_today),
+      label: 'Agenda',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.bar_chart_outlined),
+      activeIcon: Icon(Icons.bar_chart),
+      label: 'Stats',
+    ),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.person_outline),
+      activeIcon: Icon(Icons.person),
+      label: 'Profil',
+    ),
+  ],
+),
     );
   }
 
@@ -327,36 +320,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Actions rapides',
-          style: ContextExtension(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _QuickActionCard(
-                icon: Icons.add_business,
-                label: 'Nouveau service',
-                onTap: () => context.push('/services/create'),
-              ),
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Actions rapides',
+        style: ContextExtension(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 16),
+      Row(
+        children: [
+          Expanded(
+            child: _QuickActionCard(
+              icon: Icons.add_business,
+              label: 'Nouveau service',
+              onTap: () => context.push('/services/create'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _QuickActionCard(
-                icon: Icons.calendar_month,
-                label: 'Voir l\'agenda',
-                onTap: () => context.push('/appointments'),
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _QuickActionCard(
+              icon: Icons.calendar_month,
+              label: 'Voir l\'agenda',
+              onTap: () => context.push('/appointments'),
             ),
-          ],
-        ),
-      ],
-    );
-  }
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: _QuickActionCard(
+              icon: Icons.bar_chart,
+              label: 'Statistiques',
+              onTap: () => context.push('/analytics'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _QuickActionCard(
+              icon: Icons.people,
+              label: 'Clients',
+              onTap: () => context.push('/customers'),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   Widget _buildTodayAppointments() {
     return Column(

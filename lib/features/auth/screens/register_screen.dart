@@ -53,7 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   setState(() => _isLoading = true);
 
   try {
-    // 1. Créer le compte avec Supabase Auth
+    // 1. Create the account with Supabase Auth
     final authResponse = await SupabaseProvider.client.auth.signUp(
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -68,7 +68,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       throw Exception('Erreur lors de la création du compte');
     }
 
-    // 2. Créer ou mettre à jour le profil manuellement (au cas où le trigger échoue)
+    // 2. IMPORTANT: Wait for the trigger to create the profile
+    await Future.delayed(const Duration(seconds: 2));
+
+    // 3. Update the profile with complete information
     try {
       await SupabaseProvider.table('profiles').upsert({
         'id': authResponse.user!.id,
@@ -76,24 +79,89 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'full_name': _fullNameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'role': _role,
+        'updated_at': DateTime.now().toIso8601String(),
       });
+      
+      print('✅ Profile updated successfully');
     } catch (e) {
-      print('Profil déjà créé par le trigger: $e');
+      print('⚠️ Error updating profile: $e');
+      // Continue anyway - the trigger should have created basic profile
     }
 
     if (mounted) {
-      context.showSnackBar('Compte créé avec succès!');
+  // Show email verification dialog
+  await showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.mark_email_read, color: AppTheme.success),
+          const SizedBox(width: 12),
+          const Text('Vérifiez votre email'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Un email de confirmation a été envoyé à :',
+            style: ContextExtension(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _emailController.text.trim(),
+            style: ContextExtension(context).textTheme.titleSmall?.copyWith(
+              color: AppTheme.primaryBlue,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Veuillez cliquer sur le lien dans l\'email pour activer votre compte.',
+            style: ContextExtension(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.warning.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: AppTheme.warning, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Pensez à vérifier vos spams !',
+                    style: ContextExtension(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('J\'ai compris'),
+        ),
+      ],
+    ),
+  );
+  
+  // 3. Attendre puis rediriger
+  await Future.delayed(const Duration(milliseconds: 500));
       
-      // 3. Attendre 1 seconde puis rediriger
-      await Future.delayed(const Duration(seconds: 1));
-      
-      // 4. Rediriger selon le rôle
+      // 5. Redirect based on role
       if (_role == 'business_owner') {
         GoRouterHelper(context).go('/business-setup');
       } else {
-        // Pour les clients, rediriger vers login temporairement
-        // TODO: Créer une page d'accueil client
-        GoRouterHelper(context).go('/login');
+        GoRouterHelper(context).go('/client-home');
       }
     }
   } on AuthException catch (e) {
@@ -121,28 +189,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (mounted) {
       setState(() => _isLoading = false);
     }
-  }
-}
-Future<void> _debugCheckProfile(String userId) async {
-  try {
-    print('=== DEBUG: Vérification du profil ===');
-    
-    // Vérifier dans auth.users
-    final authUser = SupabaseProvider.client.auth.currentUser;
-    print('Auth User ID: ${authUser?.id}');
-    print('Auth User Email: ${authUser?.email}');
-    print('Auth User Metadata: ${authUser?.userMetadata}');
-    
-    // Vérifier dans profiles
-    final profileData = await SupabaseProvider.table('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-    
-    print('Profile Data: $profileData');
-    print('=== FIN DEBUG ===');
-  } catch (e) {
-    print('Erreur debug: $e');
   }
 }
 

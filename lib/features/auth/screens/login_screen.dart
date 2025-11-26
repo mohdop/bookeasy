@@ -75,19 +75,8 @@ class _LoginScreenState extends State<LoginScreen> {
             GoRouterHelper(context).go('/dashboard');
           }
         } else {
-          // Client: aller à une page d'accueil client
-          // TODO: Créer une vraie page d'accueil client
-          context.showSnackBar('Bienvenue ! Page client en développement');
-          
-          // Temporairement, déconnecter le client
-          await SupabaseProvider.client.auth.signOut();
-          
-          if (mounted) {
-            context.showSnackBar(
-              'Fonctionnalité client en cours de développement. Utilisez un compte professionnel.',
-              isError: true,
-            );
-          }
+          // Client: aller à la page d'accueil client
+          GoRouterHelper(context).go('/client-home');
         }
       } catch (e) {
         print('Erreur lors de la récupération du profil: $e');
