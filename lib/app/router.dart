@@ -1,8 +1,13 @@
 // lib/app/router.dart
-import '../features/onboarding/screens/onboarding_screen.dart';
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import '../features/onboarding/screens/onboarding_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
 import '../features/business/screens/dashboard_screen.dart';
@@ -12,10 +17,8 @@ import '../features/services/screens/edit_service_screen.dart';
 import '../features/appointments/screens/appointments_list_screen.dart';
 import '../features/client/screens/business_profile_screen.dart';
 import '../features/client/screens/client_home_screen.dart';
-import '../features/client/screens/client_my_bookings_screen.dart'; // For viewing bookings
-import '../features/client/screens/my_bookings_screen.dart'; // For creating new bookings (BookingScreen)
-import '../data/providers/supabase_provider.dart';
-import '../app/theme.dart';
+import '../features/client/screens/client_my_bookings_screen.dart';
+import '../features/client/screens/my_bookings_screen.dart';
 import '../features/business/screens/business_settings_screen.dart';
 import '../features/business/screens/business_owner_profile_screen.dart';
 import '../features/business/screens/analytics_screen.dart';
@@ -23,10 +26,26 @@ import '../features/business/screens/customers_screen.dart';
 import '../features/client/screens/client_profile_screen.dart';
 import '../features/client/screens/client_settings_screen.dart';
 import '../features/client/screens/advanced_search_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import '../web/landing_web_page.dart';
+import '../data/providers/supabase_provider.dart';
+import '../app/theme.dart';
 
 final supabase = Supabase.instance.client;
+
+// =============================================
+// 🔑 CLÉS DU SUCCÈS : AuthNotifier + refreshListenable
+// =============================================
+class AuthNotifier extends ChangeNotifier {
+  AuthNotifier() {
+    // Écouter TOUS les changements d'authentification
+    supabase.auth.onAuthStateChange.listen((data) {
+      print('🔐 Auth event: ${data.event}');
+      notifyListeners(); // ✅ Rafraîchir le router
+    });
+  }
+}
+
+final authNotifier = AuthNotifier();
 
 // Helper pour vérifier si l'utilisateur est business owner
 Future<bool> _isBusinessOwner() async {
@@ -46,70 +65,89 @@ Future<bool> _isBusinessOwner() async {
 }
 
 final router = GoRouter(
-  initialLocation: '/onboarding',  // Changed from '/login'
+  initialLocation: kIsWeb ? '/web-landing' : '/onboarding',
+  refreshListenable: authNotifier, // ✅ CRUCIAL : Rafraîchir quand auth change
   redirect: (context, state) async {
-    final session = supabase.auth.currentSession;
-    final isLoggedIn = session != null;
-    final isAuthRoute = state.matchedLocation == '/login' || 
-                        state.matchedLocation == '/register';
-    final isOnboarding = state.matchedLocation == '/onboarding';
-    
-    // Check if onboarding is completed
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-    
-    // If onboarding not completed and not on onboarding page, go to onboarding
-    if (!onboardingCompleted && !isOnboarding) {
-      return '/onboarding';
-    }
-    
-    // If onboarding completed but on onboarding page, go to login
-    if (onboardingCompleted && isOnboarding) {
-      return '/login';
-    }
-    
-    // If not logged in and not on auth or onboarding, redirect to login
-    if (!isLoggedIn && !isAuthRoute && !isOnboarding) {
-      return '/login';
-    }
-    
-    // If logged in and on auth page, redirect based on role
-    if (isLoggedIn && isAuthRoute) {
+  await Future.delayed(const Duration(milliseconds: 100));
+  
+  final session = supabase.auth.currentSession;
+  final isLoggedIn = session != null;
+  
+  print('📍 Route: ${state.matchedLocation} | Logged in: $isLoggedIn');
+
+  // Web logic
+  if (kIsWeb) {
+    if (state.matchedLocation == '/web-landing') return null;
+    return '/web-landing';
+  }
+
+  // --- MOBILE LOGIC ---
+  final isAuthRoute = state.matchedLocation == '/login' ||
+                      state.matchedLocation == '/register';
+  final isOnboarding = state.matchedLocation == '/onboarding';
+
+  // Onboarding check
+  final prefs = await SharedPreferences.getInstance();
+  final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+
+  // ✅ FIX : Si connecté, ignorer l'onboarding
+  if (isLoggedIn) {
+    // Si sur onboarding ou auth, rediriger vers la vraie page
+    if (isOnboarding || isAuthRoute) {
       try {
         final profileData = await SupabaseProvider.table('profiles')
             .select('role')
-            .eq('id', session.user.id)
+            .eq('id', session!.user.id)
             .single();
-        
+
         final userRole = profileData['role'] as String;
-        
+        print('👤 User role: $userRole');
+
         if (userRole == 'business_owner') {
           final businessData = await SupabaseProvider.table('businesses')
               .select('id')
               .eq('owner_id', session.user.id)
               .maybeSingle();
-          
-          return businessData == null ? '/business-setup' : '/dashboard';
+
+          final destination = businessData == null ? '/business-setup' : '/dashboard';
+          print('➡️ Redirecting to: $destination');
+          return destination;
         } else {
+          print('➡️ Redirecting to: /client-home');
           return '/client-home';
         }
       } catch (e) {
-        print('Error checking role: $e');
+        print('❌ Error: $e');
         return '/dashboard';
       }
     }
-    
-    return null; // Allow navigation
-  },
-  routes: [
+    // Si connecté et sur une autre page, laisser passer
+    return null;
+  }
 
+  // ✅ Si PAS connecté, vérifier l'onboarding
+  if (!onboardingCompleted && !isOnboarding) {
+    print('➡️ Redirecting to: /onboarding (not completed)');
+    return '/onboarding';
+  }
+
+  if (onboardingCompleted && isOnboarding) {
+    print('➡️ Redirecting to: /login (onboarding done)');
+    return '/login';
+  }
+
+  if (!isLoggedIn && !isAuthRoute && !isOnboarding) {
+    print('➡️ Redirecting to: /login (not logged in)');
+    return '/login';
+  }
+
+  return null;
+},
+  routes: [
     GoRoute(
-    path: '/onboarding',
-    builder: (context, state) => const OnboardingScreen(),
-  ),
-    // =============================================
-    // AUTH ROUTES
-    // =============================================
+      path: '/onboarding',
+      builder: (context, state) => const OnboardingScreen(),
+    ),
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
@@ -118,10 +156,6 @@ final router = GoRouter(
       path: '/register',
       builder: (context, state) => const RegisterScreen(),
     ),
-    
-    // =============================================
-    // BUSINESS OWNER ROUTES
-    // =============================================
     GoRoute(
       path: '/business-setup',
       builder: (context, state) => const BusinessSetupScreen(),
@@ -149,7 +183,6 @@ final router = GoRouter(
       path: '/appointments',
       builder: (context, state) => const AppointmentsListScreen(),
     ),
-    // Add after the dashboard route
     GoRoute(
       path: '/business-settings',
       builder: (context, state) => const BusinessSettingsScreen(),
@@ -158,7 +191,6 @@ final router = GoRouter(
       path: '/owner-profile',
       builder: (context, state) => const BusinessOwnerProfileScreen(),
     ),
-    // Add after other business owner routes
     GoRoute(
       path: '/analytics',
       builder: (context, state) => const AnalyticsScreen(),
@@ -167,10 +199,6 @@ final router = GoRouter(
       path: '/customers',
       builder: (context, state) => const CustomersScreen(),
     ),
-    
-    // =============================================
-    // CLIENT ROUTES
-    // =============================================
     GoRoute(
       path: '/client-home',
       builder: (context, state) => const ClientHomeScreen(),
@@ -197,19 +225,22 @@ final router = GoRouter(
         );
       },
     ),
-    // Add after other client routes
-  GoRoute(
-    path: '/client-profile',
-    builder: (context, state) => const ClientProfileScreen(),
-  ),
-  GoRoute(
-    path: '/client-settings',
-    builder: (context, state) => const ClientSettingsScreen(),
-  ),
-  GoRoute(
-    path: '/advanced-search',
-    builder: (context, state) => const AdvancedSearchScreen(),
-  ),
+    GoRoute(
+      path: '/web-landing',
+      builder: (context, state) => const LandingWebPage(),
+    ),
+    GoRoute(
+      path: '/client-profile',
+      builder: (context, state) => const ClientProfileScreen(),
+    ),
+    GoRoute(
+      path: '/client-settings',
+      builder: (context, state) => const ClientSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/advanced-search',
+      builder: (context, state) => const AdvancedSearchScreen(),
+    ),
   ],
   errorBuilder: (context, state) => Scaffold(
     body: Center(
