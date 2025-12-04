@@ -14,7 +14,7 @@ void main() async {
     ),
   );
   
-
+  //  POUR LE DIAGNOSTIC
   print('==========================================');
   print('🔍 DIAGNOSTIC SESSION AU DÉMARRAGE');
   print('==========================================');

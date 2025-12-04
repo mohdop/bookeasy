@@ -1,12 +1,17 @@
-// lib/app/router.dart
 // ignore_for_file: avoid_print
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-
+import '../web/landing_page.dart';
+import '../web/privacy_policy_page.dart';
+import '../web/terms_of_service_page.dart';
+import '../web/legal_page.dart';
+import '../web/help_center_page.dart';
+import '../web/faq_page.dart';
+import '../web/contact_page.dart';
+import '../web/email_confirmation_page.dart';
 import '../features/onboarding/screens/onboarding_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
@@ -26,7 +31,6 @@ import '../features/business/screens/customers_screen.dart';
 import '../features/client/screens/client_profile_screen.dart';
 import '../features/client/screens/client_settings_screen.dart';
 import '../features/client/screens/advanced_search_screen.dart';
-import '../web/landing_web_page.dart';
 import '../data/providers/supabase_provider.dart';
 import '../app/theme.dart';
 
@@ -77,7 +81,17 @@ final router = GoRouter(
 
   // Web logic
   if (kIsWeb) {
-    if (state.matchedLocation == '/web-landing') return null;
+    // Permettre l'accès aux pages web
+    if (state.matchedLocation == '/web-landing' ||
+        state.matchedLocation == '/privacy-policy' ||
+        state.matchedLocation == '/terms-of-service' ||
+        state.matchedLocation == '/legal' ||
+        state.matchedLocation == '/help-center' ||
+        state.matchedLocation == '/faq' ||
+        state.matchedLocation == '/contact' ||
+        state.matchedLocation == '/email-confirmation') {
+      return null;
+    }
     return '/web-landing';
   }
 
@@ -225,9 +239,20 @@ final router = GoRouter(
         );
       },
     ),
+   // =============================================
+    // WEB ROUTES
+    // =============================================
     GoRoute(
       path: '/web-landing',
-      builder: (context, state) => const LandingWebPage(),
+      builder: (context, state) => const LandingPage(),
+    ),
+    GoRoute(
+      path: '/privacy-policy',
+      builder: (context, state) => const PrivacyPolicyPage(),
+    ),
+    GoRoute(
+      path: '/terms-of-service',
+      builder: (context, state) => const TermsOfServicePage(),
     ),
     GoRoute(
       path: '/client-profile',
@@ -240,6 +265,26 @@ final router = GoRouter(
     GoRoute(
       path: '/advanced-search',
       builder: (context, state) => const AdvancedSearchScreen(),
+    ),
+    GoRoute(
+      path: '/legal',
+      builder: (context, state) => const LegalPage(),
+    ),
+    GoRoute(
+      path: '/help-center',
+      builder: (context, state) => const HelpCenterPage(),
+    ),
+    GoRoute(
+      path: '/faq',
+      builder: (context, state) => const FAQPage(),
+    ),
+    GoRoute(
+      path: '/contact',
+      builder: (context, state) => const ContactPage(),
+    ),
+    GoRoute(
+      path: '/email-confirmation',
+      builder: (context, state) => const EmailConfirmationPage(),
     ),
   ],
   errorBuilder: (context, state) => Scaffold(
