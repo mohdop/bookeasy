@@ -82,3 +82,8 @@ lib/core/constants/supabase_config.dart
 # Environment variables
 .env
 */
+
+# Secrets Android
+android/key.properties
+*.jks
+*.keystore
